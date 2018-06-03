@@ -2,8 +2,9 @@
 import numpy as np
 import pandas as pd
 from time import time, strftime, gmtime
+from datetime import datetime
 from optparse import OptionParser
-from pylsl import StreamInlet, resolve_byprop
+from pylsl import StreamInlet, resolve_byprop,local_clock
 from sklearn.linear_model import LinearRegression
 
 default_fname = ("data_%s.csv" % strftime("%Y-%m-%d-%H.%M.%S", gmtime()))
@@ -14,6 +15,9 @@ parser.add_option("-d", "--duration",
 parser.add_option("-f", "--filename",
                   dest="filename", type='str', default=default_fname,
                   help="Name of the recording file.")
+parser.add_option("-c", "--convert_eeg_timestamps_to_localclock",
+                  dest="convert_eeg_timestamps_to_localclock", type='str', default='1',
+		  help="Convert EEG timestamps from UTC ms to pylsl.clock_time()")
 
 # dejitter timestamps
 dejitter = False
@@ -57,6 +61,8 @@ res = []
 timestamps = []
 markers = []
 t_init = time()
+t_init_lc = local_clock()
+t_init_ms = (datetime.utcnow() - datetime(1970,1,1)).total_seconds()*1000
 time_correction = inlet.time_correction()
 print(time_correction)
 print('Start recording at time t=%.3f' % t_init)
@@ -86,6 +92,12 @@ if dejitter:
     lr = LinearRegression()
     lr.fit(X, y)
     timestamps = lr.predict(X)
+
+
+
+if options.convert_eeg_timestamps_to_localclock == '1':
+    timestamps = (timestamps/1000. - t_init_ms/1000.) + t_init_lc
+
 
 res = np.c_[timestamps, res]
 data = pd.DataFrame(data=res, columns=['timestamps'] + ch_names)
